@@ -723,11 +723,38 @@
       const chosenHost = getBackendOrigin();
       localStorage.setItem('framesync_host', chosenHost);
 
+      const submitBtn = document.querySelector('.modal-btn');
+      const originalBtnText = submitBtn.innerText;
+      submitBtn.innerText = 'Connecting to cinema...';
+      submitBtn.disabled = true;
+
       passError.style.display = 'none';
+
+      const resetBtn = () => {
+        submitBtn.innerText = originalBtnText;
+        submitBtn.disabled = false;
+      };
+
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         connectWS();
+        let attempts = 0;
+        const checkInterval = setInterval(() => {
+          attempts++;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            clearInterval(checkInterval);
+            resetBtn();
+            sendJoinPacket();
+          } else if (attempts > 15) {
+            clearInterval(checkInterval);
+            resetBtn();
+            passError.style.display = 'block';
+            passError.innerHTML = `⚠️ Cannot reach cinema server (<code>${escapeHtml(chosenHost)}</code>).<br>Please verify FrameSync is running on host PC, or check Host Server Address below.`;
+            document.getElementById('advanced-host-box').style.display = 'flex';
+          }
+        }, 200);
       } else {
         sendJoinPacket();
+        setTimeout(resetBtn, 1000);
       }
     }
 
