@@ -819,8 +819,21 @@
             maxBufferLength: 30,
             liveSyncDurationCount: 3,
             enableWorker: true,
+            maxBufferHole: 3.0,
+            nudgeMaxRetry: 10,
+            nudgeOffset: 0.2,
             xhrSetup: function(xhr, url) {
               xhr.setRequestHeader('Bypass-Tunnel-Reminder', 'true');
+            }
+          });
+
+          hlsInstance.on(Hls.Events.BUFFER_APPENDED, () => {
+            if (html5Player.buffered.length > 0) {
+              const start = html5Player.buffered.start(0);
+              if (html5Player.currentTime < start) {
+                console.log('[HLS] Jumping past container gap to:', start);
+                html5Player.currentTime = start;
+              }
             }
           });
 
@@ -836,6 +849,11 @@
             }
             if (target > 2) {
               html5Player.currentTime = target;
+            } else if (html5Player.buffered.length > 0) {
+              const start = html5Player.buffered.start(0);
+              if (html5Player.currentTime < start) {
+                html5Player.currentTime = start;
+              }
             }
             if (masterPlayback.playing) {
               html5Player.play().catch(() => { joinOverlay.style.display = 'flex'; });
@@ -844,9 +862,11 @@
 
           hlsInstance.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
-              console.warn('[HLS] Stream error:', data);
+              console.warn('[HLS] Fatal stream error, retrying:', data);
               if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
                 hlsInstance.startLoad();
+              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                hlsInstance.recoverMediaError();
               }
             }
           });
@@ -979,7 +999,20 @@
       hasInteracted = true;
       joinOverlay.style.display = 'none';
       html5Player.muted = false;
-      if (masterPlayback.playing) html5Player.play();
+
+      if (html5Player.buffered.length > 0) {
+        const start = html5Player.buffered.start(0);
+        if (html5Player.currentTime < start) {
+          html5Player.currentTime = start;
+        }
+      }
+
+      if (masterPlayback.playing) {
+        html5Player.play().catch(() => {
+          html5Player.muted = true;
+          html5Player.play().catch(() => {});
+        });
+      }
     };
 
     unmuteBtn.onclick = () => {
