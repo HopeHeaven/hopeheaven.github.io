@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FrameSync Cinema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #0B0D13;
+      --surface: #131620;
+      --surface-elevated: #1A1F2C;
+      --border: #242938;
+      --primary: #6366F1;
+      --primary-hover: #4F46E5;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      --accent: #10B981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: #F1F5F9;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    header {
+      height: 60px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(19, 22, 32, 0.7);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
+    }
+    .brand-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+    .room-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34D399;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: #10B981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10B981;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      height: calc(100vh - 60px);
+    }
+    .player-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .ambient-glow {
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(circle at center, var(--primary-glow) 0%, transparent 70%);
+      filter: blur(40px);
+      z-index: -1;
+      opacity: 0.6;
+    }
+    video, iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: none;
+    }
+    .waiting-card {
+      text-align: center;
+      padding: 40px;
+      color: #94A3B8;
+    }
+    .waiting-card h3 { font-size: 20px; color: #fff; margin-bottom: 8px; }
+    .waiting-card p { font-size: 14px; max-width: 400px; margin: 0 auto; }
+    .click-play-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11, 13, 19, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 25;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+    }
+    .play-circle {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 30px var(--primary-glow);
+      transition: transform 0.2s;
+    }
+    .play-circle:hover {
+      transform: scale(1.08);
+    }
+    .play-circle svg {
+      width: 32px;
+      height: 32px;
+      fill: #fff;
+      margin-left: 4px;
+    }
+    .unmute-pill {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(19, 22, 32, 0.85);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 20;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .now-playing {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .now-playing h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .meta-tag {
+      font-size: 12px;
+      color: #818CF8;
+      font-weight: 500;
+    }
+    .sidebar {
+      width: 340px;
+      border-left: 1px solid var(--border);
+      background: rgba(19, 22, 32, 0.4);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: #0B0D13;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      background: none;
+      border: none;
+      color: #94A3B8;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: #fff;
+      border-bottom-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg-bubble {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 85%;
+    }
+    .msg-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #94A3B8;
+    }
+    .msg-author { font-weight: 600; color: #CBD5E1; }
+    .msg-body {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .msg-bubble.me {
+      align-self: flex-end;
+    }
+    .msg-bubble.me .msg-body {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary-hover);
+    }
+    .msg-bubble.system {
+      align-self: center;
+      max-width: 100%;
+      text-align: center;
+    }
+    .msg-bubble.system .msg-body {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: #A5B4FC;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+    .chat-input-bar {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      gap: 8px;
+    }
+    .chat-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .chat-input:focus { border-color: var(--primary); }
+    .chat-send-btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .peers-panel {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .peer-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+    .peer-avatar { font-size: 20px; }
+    .peer-details { flex: 1; font-size: 13px; }
+    .peer-name { font-weight: 600; color: #fff; }
+    .peer-meta { font-size: 11px; color: #64748B; }
+
+    /* Modal / Unlock Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 13, 19, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 440px;
+      padding: 32px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .modal-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--primary), #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 0 25px var(--primary-glow);
+      margin: 0 auto;
+    }
+    .modal-title {
+      text-align: center;
+    }
+    .modal-title h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .modal-title p { font-size: 13px; color: #94A3B8; }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .modal-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .modal-input:focus { border-color: var(--primary); }
+    .modal-btn {
+      background: linear-gradient(135deg, var(--primary), #8B5CF6);
+      color: #fff;
+      border: none;
+      padding: 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px var(--primary-glow);
+      transition: transform 0.15s;
+    }
+    .modal-btn:hover { transform: translateY(-1px); }
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #F87171;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      display: none;
+    }
+    .advanced-toggle {
+      font-size: 11px;
+      color: #64748B;
+      text-align: center;
+      cursor: pointer;
+      margin-top: -6px;
+    }
+    .advanced-toggle:hover { color: #94A3B8; text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-badge">🎬</div>
+      <span>FrameSync Cinema</span>
+    </div>
+    <div class="room-info">
+      <span class="status-badge">
+        <span class="pulse-dot"></span>
+        <span id="sync-status">Connecting...</span>
+      </span>
+      <span id="drift-pill" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94A3B8;">0.00s drift</span>
+      <button id="host-settings-btn" title="Host Server Settings" style="background:none;border:none;color:#64748B;cursor:pointer;font-size:16px;">⚙️</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="player-section">
+      <div class="video-container" id="player-wrapper">
+        <div class="ambient-glow" id="ambient-glow"></div>
+
+        <!-- Waiting screen when no video is selected by host -->
+        <div id="waiting-screen" class="waiting-card">
+          <div style="font-size: 48px; margin-bottom: 12px;">🍿</div>
+          <h3>Waiting for Host to play movie</h3>
+          <p>The host is choosing a movie or link. The cinema stream will start here automatically.</p>
+        </div>
+
+        <!-- HTML5 Video Player for Local & Torrent Streaming -->
+        <video id="html5-video" playsinline style="display:none;"></video>
+
+        <!-- YouTube IFrame Container -->
+        <div id="yt-player-container" style="display:none; width: 100%; height: 100%;">
+          <div id="yt-player"></div>
+        </div>
+
+        <!-- Unmute / Click-to-play overlay required by modern browser autoplay policies -->
+        <div id="join-overlay" class="click-play-overlay" style="display:none;">
+          <div class="play-circle">
+            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div style="font-size: 16px; font-weight: 700; color: #fff;">Click to Join Cinema Audio</div>
+          <div style="font-size: 12px; color: #94A3B8;">Browsers require interaction to play sound</div>
+        </div>
+
+        <button id="unmute-btn" class="unmute-pill" style="display:none;">
+          🔊 Click to Unmute
+        </button>
+      </div>
+
+      <div class="now-playing">
+        <div>
+          <span class="meta-tag" id="media-type-tag">LIVE CINEMA STREAM</span>
+          <h2 id="media-title-display">Waiting for host...</h2>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="fullscreen-btn" style="background: var(--surface-elevated); border: 1px solid var(--border); color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            ⛶ Fullscreen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-chat" onclick="switchTab('chat')">💬 Live Chat</button>
+        <button class="tab-btn" id="tab-peers" onclick="switchTab('peers')">👥 Viewers (<span id="viewers-count">1</span>)</button>
+      </div>
+
+      <div class="chat-panel" id="panel-chat">
+        <div class="messages-container" id="chat-messages">
+          <div class="msg-bubble system">
+            <div class="msg-body">Welcome to FrameSync Cinema! Synchronized playback is active.</div>
+          </div>
+        </div>
+        <form class="chat-input-bar" onsubmit="sendChat(event)">
+          <input type="text" id="chat-field" class="chat-input" placeholder="Type a message..." autocomplete="off">
+          <button type="submit" class="chat-send-btn">Send</button>
+        </form>
+      </div>
+
+      <div class="peers-panel" id="panel-peers" style="display:none;">
+        <div id="peers-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Room Password & Host Unlock Modal -->
+  <div class="modal-overlay" id="password-modal">
+    <div class="modal-card">
+      <div class="modal-icon">🍿</div>
+      <div class="modal-title">
+        <h2>Enter FrameSync Cinema</h2>
+        <p>Enter the watch room password provided by your host.</p>
+      </div>
+
+      <div class="error-msg" id="password-error">Incorrect password. Please try again.</div>
+
+      <form onsubmit="submitUnlock(event)" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="input-group">
+          <label class="input-label">Your Nickname</label>
+          <input type="text" id="user-name-input" class="modal-input" placeholder="e.g. Alex" value="Friend">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Room Password</label>
+          <input type="password" id="room-pass-field" class="modal-input" placeholder="••••••••" autofocus>
+        </div>
+
+        <div id="advanced-host-box" style="display:none; flex-direction: column; gap: 6px;">
+          <label class="input-label">Host Server Address</label>
+          <input type="text" id="host-addr-field" class="modal-input" placeholder="e.g. hopeheaven-cinema.loca.lt">
+          <span style="font-size: 11px; color: #64748B;">Defaults to host tunnel or IP</span>
+        </div>
+
+        <div class="advanced-toggle" onclick="toggleAdvancedHost()">⚙️ Host server settings</div>
+
+        <button type="submit" class="modal-btn">Join Watch Party</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // --- QUERY PARAMS & CONFIG ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+
+    // Determine Host Server
+    let hostParam = urlParams.get('host') || hashParams.get('host') || localStorage.getItem('framesync_host');
+    if (!hostParam) {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        hostParam = window.location.host;
+      } else {
+        hostParam = 'hopeheaven-cinema.loca.lt';
+      }
+    }
+    document.getElementById('host-addr-field').value = hostParam;
+
+    // Room password & username
+    let enteredPassword = urlParams.get('pwd') || hashParams.get('pwd') || '';
+    if (enteredPassword) {
+      document.getElementById('room-pass-field').value = enteredPassword;
+    }
+
+    const myPeerId = 'web_' + Math.random().toString(36).substring(2, 9);
+    let myName = localStorage.getItem('framesync_nickname') || 'Friend_' + Math.floor(Math.random() * 900 + 100);
+    document.getElementById('user-name-input').value = myName;
+
+    let ws = null;
+    let hlsInstance = null;
+    let ytPlayer = null;
+    let ytReady = false;
+    let currentMedia = null;
+    let masterPlayback = { playing: false, position: 0, lastUpdate: Date.now() };
+    let serverTimeOffset = 0;
+    let hasInteracted = false;
+    let lastSeekTimestamp = 0;
+
+    const html5Player = document.getElementById('html5-video');
+    const ytContainer = document.getElementById('yt-player-container');
+    const waitingScreen = document.getElementById('waiting-screen');
+    const joinOverlay = document.getElementById('join-overlay');
+    const unmuteBtn = document.getElementById('unmute-btn');
+    const passModal = document.getElementById('password-modal');
+    const passError = document.getElementById('password-error');
+
+    function toggleAdvancedHost() {
+      const box = document.getElementById('advanced-host-box');
+      box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    document.getElementById('host-settings-btn').onclick = () => {
+      passModal.style.display = 'flex';
+      toggleAdvancedHost();
+    };
+
+    function switchTab(tab) {
+      document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+      document.getElementById('tab-peers').classList.toggle('active', tab === 'peers');
+      document.getElementById('panel-chat').style.display = tab === 'chat' ? 'flex' : 'none';
+      document.getElementById('panel-peers').style.display = tab === 'peers' ? 'flex' : 'none';
+    }
+
+    function getBackendOrigin() {
+      let h = document.getElementById('host-addr-field').value.trim() || hostParam;
+      h = h.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      return h;
+    }
+
+    function getHttpBase() {
+      const host = getBackendOrigin();
+      // If connecting to local IP without SSL, use http, otherwise https
+      if (host.includes('192.168.') || host.includes('localhost') || host.includes('127.0.0.1')) {
+        return 'http://' + host;
+      }
+      return 'https://' + host;
+    }
+
+    function getWsUrl() {
+      const host = getBackendOrigin();
+      if (host.includes('192.168.') || host.includes('localhost') || host.includes('127.0.0.1')) {
+        return 'ws://' + host;
+      }
+      return 'wss://' + host;
+    }
+
+    // --- WEBSOCKET CONNECTION ---
+    function connectWS() {
+      if (ws) {
+        try { ws.close(); } catch(e) {}
+      }
+
+      const wsUrl = getWsUrl();
+      document.getElementById('sync-status').innerText = 'Connecting...';
+
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (err) {
+        console.error('[WS] Connection failed:', err);
+        document.getElementById('sync-status').innerText = 'Offline';
+        setTimeout(connectWS, 3000);
+        return;
+      }
+
+      ws.onopen = () => {
+        console.log('[WS] Connected to Host');
+        document.getElementById('sync-status').innerText = 'Authorizing...';
+        sendJoinPacket();
+
+        // Heartbeat ping
+        setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'ping',
+              clientTime: Date.now(),
+            }));
+          }
+        }, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const packet = JSON.parse(e.data);
+          handlePacket(packet);
+        } catch (err) {}
+      };
+
+      ws.onclose = () => {
+        document.getElementById('sync-status').innerText = 'Reconnecting...';
+        setTimeout(connectWS, 2500);
+      };
+    }
+
+    function sendJoinPacket() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: 'join',
+        password: enteredPassword,
+        peer: {
+          id: myPeerId,
+          name: myName,
+          avatar: '🍿',
+        }
+      }));
+    }
+
+    function submitUnlock(e) {
+      e.preventDefault();
+      enteredPassword = document.getElementById('room-pass-field').value;
+      myName = document.getElementById('user-name-input').value.trim() || 'Friend';
+      localStorage.setItem('framesync_nickname', myName);
+
+      const chosenHost = getBackendOrigin();
+      localStorage.setItem('framesync_host', chosenHost);
+
+      passError.style.display = 'none';
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connectWS();
+      } else {
+        sendJoinPacket();
+      }
+    }
+
+    function handlePacket(packet) {
+      switch (packet.type) {
+        case 'auth-success':
+          passModal.style.display = 'none';
+          document.getElementById('sync-status').innerText = 'Synced';
+          break;
+
+        case 'auth-error':
+          passModal.style.display = 'flex';
+          passError.style.display = 'block';
+          passError.innerText = packet.message || 'Incorrect room password. Please try again.';
+          break;
+
+        case 'room-state':
+          if (packet.media) loadMedia(packet.media);
+          if (packet.playback) applyPlayback(packet.playback);
+          if (packet.peers) renderPeers(packet.peers);
+          break;
+
+        case 'media-change':
+          loadMedia(packet.media);
+          if (packet.playback) applyPlayback(packet.playback);
+          break;
+
+        case 'sync-action':
+          if (packet.action === 'play-pause') {
+            masterPlayback.playing = packet.playing;
+            masterPlayback.position = packet.position;
+            masterPlayback.lastUpdate = packet.timestamp;
+            syncPlayerState();
+          } else if (packet.action === 'seek') {
+            masterPlayback.position = packet.position;
+            masterPlayback.lastUpdate = packet.timestamp;
+            seekPlayer(packet.position);
+          }
+          break;
+
+        case 'pong': {
+          const now = Date.now();
+          const rtt = now - packet.clientTime;
+          const ping = Math.round(rtt / 2);
+          serverTimeOffset = (packet.serverTime + ping) - now;
+          break;
+        }
+
+        case 'chat-message':
+          appendChatMessage(packet.message);
+          break;
+
+        case 'peer-joined':
+        case 'peer-left':
+          // Request updated state
+          break;
+      }
+    }
+
+    // --- MEDIA HANDLING ---
+    function loadMedia(media) {
+      if (!media) return;
+      currentMedia = media;
+      document.getElementById('media-title-display').innerText = media.title || 'Playing Cinema Video';
+      document.getElementById('media-type-tag').innerText = media.type.toUpperCase() + ' STREAM';
+
+      waitingScreen.style.display = 'none';
+
+      if (media.type === 'youtube') {
+        html5Player.style.display = 'none';
+        html5Player.pause();
+        ytContainer.style.display = 'block';
+        loadYoutubeVideo(media.url);
+      } else {
+        ytContainer.style.display = 'none';
+        html5Player.style.display = 'block';
+
+        if (!hasInteracted) {
+          joinOverlay.style.display = 'flex';
+          html5Player.muted = true;
+        }
+
+        const httpBase = getHttpBase();
+        const streamUrl = httpBase + '/stream.m3u8';
+
+        if (Hls.isSupported()) {
+          if (hlsInstance) hlsInstance.destroy();
+          hlsInstance = new Hls({
+            maxBufferLength: 30,
+            liveSyncDurationCount: 3,
+            enableWorker: true,
+            xhrSetup: function(xhr, url) {
+              xhr.setRequestHeader('Bypass-Tunnel-Reminder', 'true');
+            }
+          });
+
+          hlsInstance.loadSource(streamUrl);
+          hlsInstance.attachMedia(html5Player);
+
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log('[HLS] Stream ready');
+            const now = Date.now() + serverTimeOffset;
+            let target = masterPlayback.position;
+            if (masterPlayback.playing) {
+              target += (now - masterPlayback.lastUpdate) / 1000;
+            }
+            if (target > 2) {
+              html5Player.currentTime = target;
+            }
+            if (masterPlayback.playing) {
+              html5Player.play().catch(() => { joinOverlay.style.display = 'flex'; });
+            }
+          });
+
+          hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              console.warn('[HLS] Stream error:', data);
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                hlsInstance.startLoad();
+              }
+            }
+          });
+        } else if (html5Player.canPlayType('application/vnd.apple.mpegurl')) {
+          html5Player.src = streamUrl;
+          if (masterPlayback.playing) html5Player.play();
+        }
+      }
+    }
+
+    function applyPlayback(pb) {
+      masterPlayback = pb;
+      syncPlayerState();
+    }
+
+    function syncPlayerState() {
+      if (masterPlayback.playing) {
+        if (currentMedia?.type === 'youtube') {
+          if (ytReady && ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+        } else {
+          html5Player.play().catch(() => { joinOverlay.style.display = 'flex'; });
+        }
+      } else {
+        if (currentMedia?.type === 'youtube') {
+          if (ytReady && ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        } else {
+          html5Player.pause();
+        }
+      }
+    }
+
+    function seekPlayer(pos) {
+      if (currentMedia?.type === 'youtube') {
+        if (ytReady && ytPlayer && ytPlayer.seekTo) ytPlayer.seekTo(pos, true);
+        return;
+      }
+
+      const now = Date.now();
+      if (html5Player.seeking || (now - lastSeekTimestamp < 3000)) {
+        return;
+      }
+
+      if (html5Player.readyState >= 1) {
+        lastSeekTimestamp = now;
+        html5Player.currentTime = pos;
+      }
+    }
+
+    // High accuracy Syncplay drift controller
+    setInterval(() => {
+      if (!masterPlayback.playing) return;
+
+      const now = Date.now() + serverTimeOffset;
+      const targetPos = masterPlayback.position + (now - masterPlayback.lastUpdate) / 1000;
+
+      let currentPos = 0;
+      if (currentMedia?.type === 'youtube') {
+        if (!ytReady || !ytPlayer) return;
+        currentPos = ytPlayer.getCurrentTime() || 0;
+      } else {
+        if (html5Player.seeking || html5Player.readyState < 3) {
+          document.getElementById('drift-pill').innerHTML = '<span style="color: #FBBF24;">⏳</span> Buffering stream...';
+          return;
+        }
+        currentPos = html5Player.currentTime || 0;
+      }
+
+      const drift = currentPos - targetPos;
+      document.getElementById('drift-pill').innerText = `${drift >= 0 ? '+' : ''}${drift.toFixed(2)}s drift`;
+
+      // Soft adjustment between 0.25s and 2.0s
+      if (Math.abs(drift) > 0.25 && Math.abs(drift) <= 2.0) {
+        const rate = drift < 0 ? 1.04 : 0.96;
+        if (currentMedia?.type === 'youtube') {
+          if (ytPlayer.setPlaybackRate) ytPlayer.setPlaybackRate(rate);
+        } else {
+          html5Player.playbackRate = rate;
+        }
+      } else if (Math.abs(drift) > 2.0) {
+        seekPlayer(targetPos);
+      } else {
+        if (currentMedia?.type === 'youtube') {
+          if (ytPlayer.setPlaybackRate) ytPlayer.setPlaybackRate(1.0);
+        } else {
+          html5Player.playbackRate = 1.0;
+        }
+      }
+    }, 1000);
+
+    // --- YOUTUBE API ---
+    function loadYoutubeVideo(url) {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      const videoId = match ? match[1] : url;
+
+      if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(tag);
+        window.onYouTubeIframeAPIReady = () => { initYtPlayer(videoId); };
+      } else if (ytReady && ytPlayer) {
+        ytPlayer.loadVideoById(videoId);
+      } else {
+        initYtPlayer(videoId);
+      }
+    }
+
+    function initYtPlayer(videoId) {
+      ytPlayer = new YT.Player('yt-player', {
+        height: '100%',
+        width: '100%',
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          modestbranding: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: () => {
+            ytReady = true;
+            if (masterPlayback.playing) ytPlayer.playVideo();
+          }
+        }
+      });
+    }
+
+    // --- INTERACTION & UNMUTE ---
+    joinOverlay.onclick = () => {
+      hasInteracted = true;
+      joinOverlay.style.display = 'none';
+      html5Player.muted = false;
+      if (masterPlayback.playing) html5Player.play();
+    };
+
+    unmuteBtn.onclick = () => {
+      html5Player.muted = false;
+      unmuteBtn.style.display = 'none';
+    };
+
+    html5Player.onvolumechange = () => {
+      if (html5Player.muted) unmuteBtn.style.display = 'flex';
+      else unmuteBtn.style.display = 'none';
+    };
+
+    document.getElementById('fullscreen-btn').onclick = () => {
+      const el = document.getElementById('player-wrapper');
+      if (!document.fullscreenElement) {
+        el.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+
+    // --- CHAT & PEERS ---
+    function appendChatMessage(msg) {
+      const box = document.getElementById('chat-messages');
+      const isMe = msg.senderId === myPeerId;
+
+      const bubble = document.createElement('div');
+      bubble.className = `msg-bubble ${isMe ? 'me' : ''} ${msg.isSystem ? 'system' : ''}`;
+
+      if (!msg.isSystem) {
+        bubble.innerHTML = `
+          <div class="msg-header">
+            <span class="msg-author">${msg.senderName}</span>
+            <span>${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          </div>
+          <div class="msg-body">${escapeHtml(msg.text)}</div>
+        `;
+      } else {
+        bubble.innerHTML = `<div class="msg-body">${escapeHtml(msg.text)}</div>`;
+      }
+
+      box.appendChild(bubble);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function sendChat(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-field');
+      const text = input.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const msg = {
+        id: 'msg_' + Date.now(),
+        senderId: myPeerId,
+        senderName: myName,
+        text: text,
+        timestamp: Date.now(),
+      };
+
+      ws.send(JSON.stringify({
+        type: 'chat-message',
+        message: msg,
+      }));
+
+      appendChatMessage(msg);
+      input.value = '';
+    }
+
+    function renderPeers(peers) {
+      document.getElementById('viewers-count').innerText = peers.length;
+      const list = document.getElementById('peers-list');
+      list.innerHTML = '';
+
+      peers.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'peer-card';
+        item.innerHTML = `
+          <div class="peer-avatar">${p.avatar || '🍿'}</div>
+          <div class="peer-details">
+            <div class="peer-name">${escapeHtml(p.name)} ${p.isHost ? '👑' : ''}</div>
+            <div class="peer-meta">${p.buffering ? '⏳ Buffering' : (p.paused ? '⏸ Paused' : '▶ Playing')}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.innerText = str || '';
+      return div.innerHTML;
+    }
+
+    // Auto connect on start if password is provided or modal was open
+    connectWS();
+  </script>
+</body>
+</html>
